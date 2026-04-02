@@ -1790,7 +1790,7 @@ export default function ChatSiteBase() {
                   </div>
                 </div>
 
-                <div className="flex min-h-[520px] flex-col overflow-hidden rounded-[36px] border border-white/10 bg-white/[0.04] backdrop-blur-xl xl:min-h-0">
+                <div className="flex h-[72dvh] min-h-[520px] flex-col overflow-hidden rounded-[36px] border border-white/10 bg-white/[0.04] backdrop-blur-xl xl:h-auto xl:min-h-0">
                   <div className="border-b border-white/10 px-5 py-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
                       Chat testuale
@@ -1992,10 +1992,10 @@ export default function ChatSiteBase() {
         </Card>
 
         <div className={`relative isolate grid min-h-0 gap-5 ${activeGameCount > 0 ? "xl:grid-cols-[340px_minmax(0,1fr)]" : "grid-cols-1"}`}>
-          <Card className="relative isolate h-auto overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
+          <Card className="relative isolate h-[78dvh] min-h-[620px] overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_45%,rgba(255,255,255,0.015))]" />
             <CardContent className="flex h-full min-h-0 flex-col p-0 text-white">
-              <div className="border-b border-white/10 bg-white/[0.05] px-6 py-5 backdrop-blur-xl">
+              <div className="border-b border-white/10 bg-white/[0.05] px-4 py-4 backdrop-blur-xl sm:px-6 sm:py-5">
                 <div className="flex flex-col items-center gap-4">
                   <div>
                     {connected && stranger ? (
@@ -2028,7 +2028,7 @@ export default function ChatSiteBase() {
                 </div>
               </div>
 
-              <div className="relative min-h-0 flex-1 overflow-y-auto px-6 py-6">
+              <div className="relative min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
                 <div className="relative space-y-4">
                   {messages.map((msg) =>
                     msg.system ? (
@@ -2088,7 +2088,7 @@ export default function ChatSiteBase() {
                 </div>
               </div>
 
-              <div className="border-t border-white/10 bg-transparent p-4 backdrop-blur-xl">
+              <div className="border-t border-white/10 bg-transparent p-3 backdrop-blur-xl sm:p-4">
                 <div className="rounded-[26px] border border-white/10 bg-black/25 p-3 backdrop-blur-xl">
                   <div className="flex items-end gap-3">
                     <textarea
@@ -2104,7 +2104,7 @@ export default function ChatSiteBase() {
                     <Button
                       onClick={handleSend}
                       disabled={!canSend}
-                      className="h-12 rounded-2xl bg-gradient-to-r from-white to-zinc-300 px-5 text-black shadow-lg shadow-white/10 hover:opacity-95 disabled:opacity-50"
+                      className="h-12 rounded-2xl bg-gradient-to-r from-white to-zinc-300 px-4 text-black shadow-lg shadow-white/10 hover:opacity-95 disabled:opacity-50 sm:px-5"
                     >
                       <Send className="mr-2 h-4 w-4" />
                       Invia
@@ -2120,7 +2120,7 @@ export default function ChatSiteBase() {
           </Card>
 
           {isBriscolaActive ? (
-            <Card className="relative isolate h-auto overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
+            <Card className="relative isolate h-[calc(100dvh-2rem)] min-h-[680px] overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
               <CardContent className="h-full p-4">
                 <BriscolaBoard
                   gameState={briscolaGameState}
@@ -2130,7 +2130,7 @@ export default function ChatSiteBase() {
               </CardContent>
             </Card>
           ) : isColorActive ? (
-            <Card className="relative isolate h-auto overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
+            <Card className="relative isolate h-[calc(100dvh-2rem)] min-h-[680px] overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
               <CardContent className="h-full p-4">
                 <ColorBoard
                   gameState={colorGameState}

@@ -40,8 +40,8 @@ npm run dev
 Frontend `.env`:
 
 ```env
-VITE_API_URL=https://anonchat-kvm9.onrender.com
-VITE_SOCKET_URL=https://anonchat-kvm9.onrender.com
+VITE_API_URL=http://localhost:3001
+VITE_SOCKET_URL=http://localhost:3001
 ```
 
 Backend `server/.env`:
@@ -54,6 +54,7 @@ JWT_SECRET=change-this-super-secret-key
 ```
 
 Nota: il backend legge le variabili da `process.env`, quindi in produzione vanno impostate nel provider hosting.
+In locale, se non imposti `VITE_API_URL` e `VITE_SOCKET_URL`, il frontend usa automaticamente `http://localhost:3001` quando viene aperto da `localhost` o `127.0.0.1`.
 
 ## Check prima del deploy
 

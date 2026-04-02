@@ -27,7 +27,7 @@ const BRISCOLA_TRICK_SWEEP_INTERVAL_MS = 500;
 const COLOR_TOTAL_ROUNDS = 5;
 const COLOR_MEMORIZE_MS = 5000;
 const COLOR_GUESS_MS = 60000;
-const COLOR_RESULT_MS = 3500;
+const COLOR_RESULT_MS = 5000;
 
 function parseAllowedOrigins(value) {
   return String(value || "")
@@ -38,8 +38,22 @@ function parseAllowedOrigins(value) {
 
 const allowedOrigins = parseAllowedOrigins(CLIENT_URL);
 
+function isVercelPreviewOrigin(origin) {
+  try {
+    const { protocol, hostname } = new URL(origin);
+    return protocol === "https:" && hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
+
 function corsOrigin(origin, callback) {
-  if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+  if (
+    !origin ||
+    allowedOrigins.length === 0 ||
+    allowedOrigins.includes(origin) ||
+    isVercelPreviewOrigin(origin)
+  ) {
     return callback(null, true);
   }
 
@@ -60,7 +74,9 @@ const io = new Server(server, {
 const onlineUsers = new Map(); // socketId -> { id, username }
 const connectedUsers = new Map(); // userId -> { socketId, sessionId }
 const waitingQueue = []; // [{ socketId, userId, username, interests, queuedAt }]
+const videoWaitingQueue = []; // [{ socketId, userId, username, queuedAt }]
 const activeChats = new Map(); // socketId -> partnerSocketId
+const activeVideoChats = new Map(); // socketId -> partnerSocketId
 const typingCooldowns = new Map(); // socketId -> timestamp
 
 const briscolaVotes = new Map(); // roomId -> { start: {socketId:boolean}, end: {socketId:boolean} }
@@ -183,6 +199,12 @@ function getPartnerSocket(socketId) {
   return io.sockets.sockets.get(partnerId) || null;
 }
 
+function getVideoPartnerSocket(socketId) {
+  const partnerId = activeVideoChats.get(socketId);
+  if (!partnerId) return null;
+  return io.sockets.sockets.get(partnerId) || null;
+}
+
 function getPartnerId(socketId) {
   return activeChats.get(socketId) || null;
 }
@@ -218,11 +240,16 @@ function disconnectUser(socketId) {
   socket.disconnect(true);
 }
 
-function removeFromQueue(socketId) {
-  const index = waitingQueue.findIndex((entry) => entry.socketId === socketId);
+function removeFromQueueList(queue, socketId) {
+  const index = queue.findIndex((entry) => entry.socketId === socketId);
   if (index !== -1) {
-    waitingQueue.splice(index, 1);
+    queue.splice(index, 1);
   }
+}
+
+function removeFromQueue(socketId) {
+  removeFromQueueList(waitingQueue, socketId);
+  removeFromQueueList(videoWaitingQueue, socketId);
 }
 
 function initVoteState(roomId, socketA, socketB) {
@@ -394,7 +421,7 @@ function scoreColorGuess(target, guess) {
       (targetRgb.b - guessRgb.b) ** 2
   );
   const maxDistance = Math.sqrt(255 ** 2 * 3);
-  return Math.round((1 - distance / maxDistance) * 100);
+  return Math.max(0, Math.min(100, Math.round((1 - distance / maxDistance) * 100)));
 }
 
 function emitBriscolaVoteState(roomId) {
@@ -681,15 +708,14 @@ function resolveColorRound(roomId) {
     },
   };
 
-  const lastRound = game.round >= game.totalRounds;
-  if (lastRound) {
-    finishColorGame(game);
-    emitColorState(roomId);
-    return;
-  }
-
   game.status = `Round ${game.round}/${game.totalRounds} completato.`;
   scheduleColorPhase(game, COLOR_RESULT_MS, () => {
+    if (game.round >= game.totalRounds) {
+      finishColorGame(game);
+      emitColorState(roomId);
+      return;
+    }
+
     startNextColorRound(game);
     emitColorState(roomId);
   });
@@ -1046,6 +1072,19 @@ function leaveCurrentChat(socket, options = { notifyPartner: true }) {
   }
 }
 
+function leaveCurrentVideoChat(socket, options = { notifyPartner: true }) {
+  const partnerSocketId = activeVideoChats.get(socket.id);
+  if (!partnerSocketId) return;
+
+  activeVideoChats.delete(socket.id);
+  activeVideoChats.delete(partnerSocketId);
+
+  const partnerSocket = io.sockets.sockets.get(partnerSocketId);
+  if (partnerSocket && options.notifyPartner) {
+    partnerSocket.emit("video-peer-left");
+  }
+}
+
 function tryMatch(socket) {
   const current = waitingQueue.find((entry) => entry.socketId === socket.id);
   if (!current) return false;
@@ -1115,6 +1154,53 @@ function tryMatch(socket) {
   return true;
 }
 
+function tryVideoMatch(socket) {
+  const currentIndex = videoWaitingQueue.findIndex((entry) => entry.socketId === socket.id);
+  if (currentIndex === -1) return false;
+
+  const bestIndex = videoWaitingQueue.findIndex((entry) => entry.socketId !== socket.id);
+  if (bestIndex === -1) return false;
+
+  const me = videoWaitingQueue[currentIndex];
+  const other = videoWaitingQueue[bestIndex];
+  if (!me || !other) return false;
+
+  const meSocket = io.sockets.sockets.get(me.socketId);
+  const otherSocket = io.sockets.sockets.get(other.socketId);
+
+  if (!meSocket || !otherSocket) {
+    removeFromQueue(me.socketId);
+    removeFromQueue(other.socketId);
+    return false;
+  }
+
+  removeFromQueue(me.socketId);
+  removeFromQueue(other.socketId);
+
+  activeVideoChats.set(me.socketId, other.socketId);
+  activeVideoChats.set(other.socketId, me.socketId);
+
+  meSocket.emit("video-match-found", {
+    isInitiator: true,
+    stranger: {
+      id: other.userId,
+      username: other.username,
+      interests: [],
+    },
+  });
+
+  otherSocket.emit("video-match-found", {
+    isInitiator: false,
+    stranger: {
+      id: me.userId,
+      username: me.username,
+      interests: [],
+    },
+  });
+
+  return true;
+}
+
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -1133,7 +1219,21 @@ function authMiddleware(req, res, next) {
 }
 
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, uptime: process.uptime() });
+  const dbConnected = mongoose.connection.readyState === 1;
+
+  if (!dbConnected) {
+    return res.status(503).json({
+      ok: false,
+      uptime: process.uptime(),
+      database: "disconnected",
+    });
+  }
+
+  return res.json({
+    ok: true,
+    uptime: process.uptime(),
+    database: "connected",
+  });
 });
 
 app.post("/auth/register", async (req, res) => {
@@ -1312,6 +1412,7 @@ io.on("connection", (socket) => {
     const interests = sanitizeInterests(payload.interests);
 
     removeFromQueue(socket.id);
+    leaveCurrentVideoChat(socket);
     leaveCurrentChat(socket);
 
     waitingQueue.push({
@@ -1331,6 +1432,43 @@ io.on("connection", (socket) => {
     leaveCurrentChat(socket);
   });
 
+  socket.on("find-video-stranger", () => {
+    removeFromQueue(socket.id);
+    leaveCurrentChat(socket);
+    leaveCurrentVideoChat(socket);
+
+    videoWaitingQueue.push({
+      socketId: socket.id,
+      userId: currentUser.id,
+      username: currentUser.username,
+      queuedAt: Date.now(),
+    });
+
+    socket.emit("video-searching");
+    tryVideoMatch(socket);
+  });
+
+  socket.on("leave-video-chat", () => {
+    removeFromQueue(socket.id);
+    leaveCurrentVideoChat(socket);
+  });
+
+  socket.on("video-signal", (payload = {}) => {
+    const partnerId = activeVideoChats.get(socket.id);
+    if (!partnerId) {
+      socket.emit("error-message", { message: "Nessuna videochat attiva." });
+      return;
+    }
+
+    const partnerSocket = io.sockets.sockets.get(partnerId);
+    if (!partnerSocket) {
+      socket.emit("error-message", { message: "Lo sconosciuto video non e piu connesso." });
+      return;
+    }
+
+    partnerSocket.emit("video-signal", payload);
+  });
+
   socket.on("chat-message", (payload = {}) => {
     const text = sanitizeMessage(payload.text);
     if (!text) return;
@@ -1342,6 +1480,19 @@ io.on("connection", (socket) => {
     }
 
     partnerSocket.emit("chat-message", { text });
+  });
+
+  socket.on("video-message", (payload = {}) => {
+    const text = sanitizeMessage(payload.text);
+    if (!text) return;
+
+    const partnerSocket = getVideoPartnerSocket(socket.id);
+    if (!partnerSocket) {
+      socket.emit("error-message", { message: "Nessuna videochat attiva." });
+      return;
+    }
+
+    partnerSocket.emit("video-message", { text });
   });
 
   socket.on("typing", () => {
@@ -1386,6 +1537,7 @@ io.on("connection", (socket) => {
     typingCooldowns.delete(socket.id);
     removeFromQueue(socket.id);
     leaveCurrentChat(socket);
+    leaveCurrentVideoChat(socket);
     onlineUsers.delete(socket.id);
     if (getConnectedUserEntry(currentUser.id)?.socketId === socket.id) {
       connectedUsers.delete(currentUser.id);
@@ -1394,12 +1546,19 @@ io.on("connection", (socket) => {
   });
 });
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => console.log("🔥 MongoDB connesso"))
-  .catch((err) => console.error("❌ MongoDB errore:", err));
+async function startServer() {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("🔥 MongoDB connesso");
 
-server.listen(PORT, () => {
-  console.log(`✅ Backend avviato su http://localhost:${PORT}`);
-  console.log(`🌐 Frontend autorizzato: ${CLIENT_URL}`);
-});
+    server.listen(PORT, () => {
+      console.log(`✅ Backend avviato su http://localhost:${PORT}`);
+      console.log(`🌐 Frontend autorizzato: ${CLIENT_URL}`);
+    });
+  } catch (err) {
+    console.error("❌ MongoDB errore:", err);
+    process.exit(1);
+  }
+}
+
+startServer();

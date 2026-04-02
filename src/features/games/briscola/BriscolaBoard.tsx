@@ -1,14 +1,18 @@
+import cardBackImage from "@/assets/carte/napoli/retro.png";
 import { getCardImage, getCardLabel } from "./card-utils";
 import type { BriscolaCard, BriscolaGameState } from "./types";
 
 function CardBack({ small = false }: { small?: boolean }) {
-  const classes = small ? "h-[122px] w-[82px]" : "h-[156px] w-[108px]";
+  const classes = small
+    ? "h-[86px] w-[58px] sm:h-[122px] sm:w-[82px]"
+    : "h-[108px] w-[74px] sm:h-[156px] sm:w-[108px]";
   return (
-    <div
-      className={`${classes} rounded-xl border border-white/15 bg-[linear-gradient(135deg,#1d4ed8,#1e3a8a)] shadow-[0_12px_18px_rgba(0,0,0,0.35)]`}
-    >
-      <div className="m-2 h-[calc(100%-1rem)] rounded-lg border border-white/25 bg-[radial-gradient(circle,rgba(255,255,255,0.18)_1px,transparent_1px)] [background-size:8px_8px]" />
-    </div>
+    <img
+      src={cardBackImage}
+      alt="Retro carta"
+      draggable={false}
+      className={`${classes} rounded-xl object-contain drop-shadow-[0_12px_18px_rgba(0,0,0,0.35)] select-none`}
+    />
   );
 }
 
@@ -25,10 +29,10 @@ function NapoliCardImage({
 }) {
   const classes =
     size === "small"
-      ? "h-[122px] w-[82px]"
+      ? "h-[86px] w-[58px] sm:h-[122px] sm:w-[82px]"
       : size === "large"
-      ? "h-[176px] w-[122px]"
-      : "h-[156px] w-[108px]";
+      ? "h-[118px] w-[82px] sm:h-[176px] sm:w-[122px]"
+      : "h-[108px] w-[74px] sm:h-[156px] sm:w-[108px]";
 
   return (
     <button
@@ -59,7 +63,7 @@ export function BriscolaBoard({
 }) {
   if (!gameState) {
     return (
-      <div className="flex h-full min-h-[760px] items-center justify-center rounded-[30px] border border-white/10 bg-black/35 p-8 text-center text-zinc-300">
+      <div className="flex h-full min-h-[560px] items-center justify-center rounded-[30px] border border-white/10 bg-black/35 p-8 text-center text-zinc-300 sm:min-h-[760px]">
         Caricamento partita...
       </div>
     );
@@ -68,10 +72,10 @@ export function BriscolaBoard({
   const briscolaLabel = gameState.briscolaCard ? getCardLabel(gameState.briscolaCard) : "Nessuna";
 
   return (
-    <div className="relative h-full min-h-[760px] overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.16),transparent_28%),linear-gradient(180deg,#14532d,#166534)] p-4 shadow-[inset_0_0_30px_rgba(0,0,0,0.28)]">
+    <div className="relative h-full min-h-[560px] overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.16),transparent_28%),linear-gradient(180deg,#14532d,#166534)] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.28)] sm:min-h-[760px] sm:p-4">
       <div className="absolute inset-3 rounded-[26px] border border-white/10" />
 
-      <div className="absolute left-5 top-5 z-10 rounded-2xl border border-white/10 bg-black/25 px-4 py-3 backdrop-blur-xl">
+      <div className="absolute left-4 top-4 z-10 rounded-2xl border border-white/10 bg-black/25 px-3 py-2 backdrop-blur-xl sm:left-5 sm:top-5 sm:px-4 sm:py-3">
         <p className="text-sm font-semibold text-white">Turno attuale</p>
         <p className="mt-1 text-sm text-zinc-300">
           {gameState.gameOver
@@ -82,23 +86,23 @@ export function BriscolaBoard({
         </p>
       </div>
 
-      <div className="absolute right-5 top-5 z-10 rounded-2xl border border-white/10 bg-black/25 px-4 py-3 backdrop-blur-xl">
+      <div className="absolute right-4 top-4 z-10 rounded-2xl border border-white/10 bg-black/25 px-3 py-2 backdrop-blur-xl sm:right-5 sm:top-5 sm:px-4 sm:py-3">
         <p className="text-sm font-semibold text-white">Briscola</p>
         <p className="mt-1 max-w-[190px] text-sm text-zinc-300">{briscolaLabel}</p>
       </div>
 
-      <div className="absolute left-1/2 top-7 z-10 flex -translate-x-1/2 flex-col items-center gap-2">
+      <div className="absolute left-1/2 top-20 z-10 flex -translate-x-1/2 flex-col items-center gap-2 sm:top-7">
         <div className="rounded-full border border-white/10 bg-black/25 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-200 backdrop-blur-xl">
           {strangerName}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {Array.from({ length: gameState.opponentHandCount }).map((_, index) => (
             <CardBack key={index} small />
           ))}
         </div>
       </div>
 
-      <div className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-7">
+      <div className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center gap-4 sm:gap-7">
         {gameState.tableCards.map((played, index) => (
           <div
             key={`${played.player}-${played.card.id}`}
@@ -109,7 +113,7 @@ export function BriscolaBoard({
         ))}
       </div>
 
-      <div className="absolute bottom-28 left-1/2 z-10 flex w-[406px] -translate-x-1/2 items-end justify-center gap-5">
+      <div className="absolute bottom-32 left-1/2 z-10 flex w-[min(280px,82vw)] -translate-x-1/2 items-end justify-center gap-3 sm:bottom-28 sm:w-[406px] sm:gap-5">
         {gameState.myHand.map((card) => (
           <NapoliCardImage
             key={card.id}
@@ -125,13 +129,13 @@ export function BriscolaBoard({
         ))}
       </div>
 
-      <div className="absolute right-6 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-4">
+      <div className="absolute right-3 top-1/2 z-10 flex -translate-y-1/2 flex-col items-center gap-2 sm:right-6 sm:gap-4">
         <div className="rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-center backdrop-blur-xl">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-300">Mazzo</p>
           <p className="mt-1 text-2xl font-black text-white">{gameState.deckCount}</p>
         </div>
 
-        <div className="relative h-[118px] w-[78px]">
+        <div className="relative h-[86px] w-[58px] sm:h-[118px] sm:w-[78px]">
           {gameState.deckCount > 0 ? (
             <>
               <div className="absolute left-0 top-0">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Eye, Palette } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,11 +35,11 @@ function VerticalSlider({
   disabled: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center gap-5">
+    <div className="flex flex-col items-center gap-2 sm:gap-3">
       <span className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-300">
         {label}
       </span>
-      <div className="flex h-[420px] w-20 items-center justify-center rounded-[24px] border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+      <div className="flex h-[clamp(120px,22dvh,320px)] w-16 items-center justify-center rounded-[24px] border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:w-20">
         <input
           type="range"
           min={min}
@@ -47,11 +47,41 @@ function VerticalSlider({
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="color-range h-8 w-[404px] -rotate-90 appearance-none rounded-full"
+          className="color-range h-8 w-[clamp(104px,calc(22dvh-16px),304px)] -rotate-90 appearance-none rounded-full"
           style={{ background: gradient }}
         />
       </div>
       <span className="text-sm font-medium text-zinc-300">{value}</span>
+    </div>
+  );
+}
+
+function ResultSwatch({
+  title,
+  color,
+  scoreLabel,
+}: {
+  title: string;
+  color: ColorValue;
+  scoreLabel?: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-3">
+      <p className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">
+        {title}
+      </p>
+      <div
+        className="mt-2 h-[clamp(54px,8dvh,88px)] rounded-[20px] border border-white/10 shadow-[0_18px_40px_rgba(0,0,0,0.28)]"
+        style={{ background: colorToCss(color) }}
+      />
+      <p className="mt-2 text-center text-sm font-semibold uppercase tracking-[0.16em] text-white">
+        {color.hex}
+      </p>
+      {scoreLabel ? (
+        <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
+          {scoreLabel}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -67,6 +97,8 @@ export function ColorBoard({
 }) {
   const [guess, setGuess] = useState({ h: 180, s: 50, l: 50 });
   const [remainingMs, setRemainingMs] = useState(0);
+  const [displayScores, setDisplayScores] = useState({ me: 0, opponent: 0 });
+  const scoreAnimationRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!gameState) return;
@@ -97,6 +129,62 @@ export function ColorBoard({
     return () => window.clearInterval(interval);
   }, [gameState?.phaseEndsAt]);
 
+  useEffect(() => {
+    if (!gameState) {
+      setDisplayScores({ me: 0, opponent: 0 });
+      return;
+    }
+
+    if (scoreAnimationRef.current !== null) {
+      window.clearInterval(scoreAnimationRef.current);
+      scoreAnimationRef.current = null;
+    }
+
+    const revealResult = gameState.revealResult;
+    const shouldAnimateScore =
+      !!revealResult && (gameState.phase === "result" || gameState.phase === "finished");
+
+    if (!shouldAnimateScore) {
+      setDisplayScores({
+        me: gameState.myTotalScore,
+        opponent: gameState.opponentTotalScore,
+      });
+      return;
+    }
+
+    const startMe = 0;
+    const startOpponent = 0;
+    const endMe = revealResult.myScore;
+    const endOpponent = revealResult.opponentScore;
+    const startedAt = Date.now();
+    const durationMs = 1800;
+
+    setDisplayScores({ me: startMe, opponent: startOpponent });
+
+    scoreAnimationRef.current = window.setInterval(() => {
+      const progress = Math.min(1, (Date.now() - startedAt) / durationMs);
+
+      setDisplayScores({
+        me: Math.round(startMe + (endMe - startMe) * progress),
+        opponent: Math.round(
+          startOpponent + (endOpponent - startOpponent) * progress
+        ),
+      });
+
+      if (progress >= 1 && scoreAnimationRef.current !== null) {
+        window.clearInterval(scoreAnimationRef.current);
+        scoreAnimationRef.current = null;
+      }
+    }, 16);
+
+    return () => {
+      if (scoreAnimationRef.current !== null) {
+        window.clearInterval(scoreAnimationRef.current);
+        scoreAnimationRef.current = null;
+      }
+    };
+  }, [gameState]);
+
   const previewCss = useMemo(
     () => `hsl(${guess.h} ${guess.s}% ${guess.l}%)`,
     [guess.h, guess.l, guess.s]
@@ -104,7 +192,7 @@ export function ColorBoard({
 
   if (!gameState) {
     return (
-      <div className="flex h-full min-h-[760px] items-center justify-center rounded-[30px] border border-white/10 bg-black/35 p-8 text-center text-zinc-300">
+      <div className="flex h-full min-h-0 items-center justify-center rounded-[30px] border border-white/10 bg-black/35 p-8 text-center text-zinc-300">
         Caricamento partita...
       </div>
     );
@@ -120,43 +208,80 @@ export function ColorBoard({
       : "Partita conclusa";
   const timerSeconds = Math.ceil(remainingMs / 1000);
   const isMemorizePhase = gameState.phase === "memorize";
+  const isFinishedPhase = gameState.phase === "finished";
+  const isResultPhase = !!gameState.revealResult && gameState.phase === "result";
   const isUrgentTimer = timerSeconds <= 10 && gameState.phase !== "finished" && timerSeconds > 0;
+  const winnerLabel =
+    gameState.winner === "me"
+      ? "Hai vinto"
+      : gameState.winner === "opponent"
+      ? `Ha vinto ${strangerName}`
+      : "Pareggio";
 
   return (
-    <div className="relative h-full min-h-[760px] overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_20%),linear-gradient(180deg,#17171b,#121216)] p-5 shadow-[inset_0_0_30px_rgba(0,0,0,0.28)]">
-      <div className="absolute inset-3 rounded-[26px] border border-white/8" />
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_20%),linear-gradient(180deg,#17171b,#121216)] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.28)] sm:p-5">
+      <div className="pointer-events-none absolute inset-3 rounded-[26px] border border-white/8" />
 
-      <div className="relative z-10 flex items-center justify-between gap-4">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+      <div className="relative z-10 flex items-center justify-between gap-2 sm:gap-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 sm:px-4 sm:py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Round</p>
           <p className="mt-1 text-xl font-bold text-white">
             {Math.max(gameState.round, 1)}/{gameState.totalRounds}
           </p>
         </div>
 
-        <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-zinc-200">
+        <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-200 sm:px-4 sm:text-xs sm:tracking-[0.22em]">
           {phaseLabel}
         </div>
 
-        <div
-          className={`rounded-2xl border border-white/10 bg-white/[0.04] text-right ${
-            isMemorizePhase ? "px-5 py-4" : "px-4 py-3"
-          }`}
-        >
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Tempo</p>
-          <p
-            className={`mt-1 font-bold ${
-              isUrgentTimer ? "animate-pulse text-red-400" : "text-white"
-            } ${isMemorizePhase ? "text-4xl" : "text-xl"}`}
+        {!isResultPhase ? (
+          <div
+            className={`rounded-2xl border border-white/10 bg-white/[0.04] text-right ${
+              isMemorizePhase ? "px-3 py-2 sm:px-5 sm:py-4" : "px-3 py-2 sm:px-4 sm:py-3"
+            }`}
           >
-            {timerSeconds}s
-          </p>
-        </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Tempo</p>
+            <p
+              className={`mt-1 font-bold ${
+                isUrgentTimer ? "animate-pulse text-red-400" : "text-white"
+              } ${isMemorizePhase ? "text-4xl" : "text-xl"}`}
+            >
+              {timerSeconds}s
+            </p>
+          </div>
+        ) : (
+          <div className="w-[70px] sm:w-[88px]" />
+        )}
       </div>
 
-      {isMemorizePhase ? (
+      {isFinishedPhase ? (
+        <div className="relative z-10 mt-5 flex min-h-0 flex-1 flex-col items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.04] p-8 text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+            Partita finita
+          </p>
+          <h2 className="mt-4 text-3xl font-black uppercase tracking-[0.12em] text-white sm:text-4xl sm:tracking-[0.16em]">
+            {winnerLabel}
+          </h2>
+          <div className="mt-10 grid w-full max-w-md grid-cols-2 gap-4">
+            <div className="rounded-[26px] border border-white/10 bg-black/20 px-4 py-5 sm:px-5 sm:py-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">
+                Tu
+              </p>
+              <p className="mt-3 text-4xl font-black text-white sm:text-5xl">{gameState.myTotalScore}</p>
+            </div>
+            <div className="rounded-[26px] border border-white/10 bg-black/20 px-4 py-5 sm:px-5 sm:py-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-400">
+                {strangerName}
+              </p>
+              <p className="mt-3 text-4xl font-black text-white sm:text-5xl">
+                {gameState.opponentTotalScore}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : isMemorizePhase ? (
         <div
-          className="relative z-10 mt-5 min-h-[620px] rounded-[28px] border border-white/10 p-6 shadow-[0_20px_45px_rgba(0,0,0,0.28)]"
+          className="relative z-10 mt-5 min-h-0 flex-1 rounded-[28px] border border-white/10 p-6 shadow-[0_20px_45px_rgba(0,0,0,0.28)]"
           style={{ background: colorToCss(gameState.targetColor ?? defaultGuess) }}
         >
           <div className="flex items-start justify-between gap-4">
@@ -169,9 +294,28 @@ export function ColorBoard({
             </div>
           </div>
         </div>
+      ) : isResultPhase && gameState.revealResult ? (
+        <div className="relative z-10 mt-4 flex min-h-0 flex-1 flex-col">
+          <div className="grid gap-2">
+            <ResultSwatch
+              title="Il tuo colore"
+              color={gameState.revealResult.myGuess}
+              scoreLabel={`+${gameState.revealResult.myScore} pt`}
+            />
+            <ResultSwatch
+              title="Colore target"
+              color={gameState.revealResult.targetColor}
+            />
+            <ResultSwatch
+              title={`Colore ${strangerName}`}
+              color={gameState.revealResult.opponentGuess}
+              scoreLabel={`+${gameState.revealResult.opponentScore} pt`}
+            />
+          </div>
+        </div>
       ) : (
-      <div className="relative z-10 mt-5">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="relative z-10 mt-4 flex min-h-0 flex-1 flex-col">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <div className="flex justify-center">
               <VerticalSlider
                 label="Hue"
@@ -211,7 +355,7 @@ export function ColorBoard({
 
           <div className="flex justify-center">
             <div
-            className="relative mt-8 min-h-[260px] w-full rounded-[28px] border border-white/10 p-6 shadow-[0_20px_45px_rgba(0,0,0,0.28)]"
+            className="relative mt-4 min-h-[clamp(120px,16dvh,220px)] w-full rounded-[28px] border border-white/10 p-4 shadow-[0_20px_45px_rgba(0,0,0,0.28)] sm:p-6"
             style={{
               background:
                 gameState.phase === "guess" && !gameState.revealResult
@@ -249,11 +393,11 @@ export function ColorBoard({
               ) : null}
 
               {gameState.phase === "guess" ? (
-                <div className="absolute bottom-5 right-5">
+                <div className="absolute bottom-4 right-4 sm:bottom-5 sm:right-5">
                   <Button
                     onClick={() => onSubmitGuess(guess)}
                     disabled={gameState.mySubmitted}
-                  className="rounded-full bg-white px-6 py-7 text-base text-zinc-950 shadow-lg hover:bg-zinc-100"
+                  className="rounded-full bg-white px-5 py-6 text-sm text-zinc-950 shadow-lg hover:bg-zinc-100 sm:px-6 sm:py-7 sm:text-base"
                 >
                     <Palette className="mr-2 h-5 w-5" />
                     {gameState.mySubmitted ? "Inviato" : "Invia colore"}
@@ -265,17 +409,18 @@ export function ColorBoard({
         </div>
       )}
 
-      <div className="relative z-10 mt-5 grid gap-3 md:grid-cols-2">
+      {!isFinishedPhase ? (
+      <div className="relative z-10 mt-4 grid shrink-0 gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
           <p className="text-sm font-semibold text-white">Punteggio</p>
           <div className="mt-2 space-y-1 text-sm text-zinc-300">
             <div className="flex items-center justify-between gap-4">
               <span>Tu</span>
-              <span className="font-bold text-white">{gameState.myTotalScore}</span>
+              <span className="font-bold text-white">{displayScores.me}</span>
             </div>
             <div className="flex items-center justify-between gap-4">
               <span>{strangerName}</span>
-              <span className="font-bold text-white">{gameState.opponentTotalScore}</span>
+              <span className="font-bold text-white">{displayScores.opponent}</span>
             </div>
           </div>
         </div>
@@ -298,6 +443,7 @@ export function ColorBoard({
           ) : null}
         </div>
       </div>
+      ) : null}
     </div>
   );
 }

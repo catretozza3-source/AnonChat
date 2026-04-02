@@ -2,7 +2,10 @@ const DEFAULT_PRODUCTION_API_URL = "https://anonchat-kvm9.onrender.com";
 const DEFAULT_LOCAL_API_URL = "http://localhost:3001";
 
 function getRuntimeDefaultApiUrl() {
-  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+  if (
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ) {
     return DEFAULT_LOCAL_API_URL;
   }
 

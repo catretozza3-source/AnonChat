@@ -40,15 +40,15 @@ npm run dev
 Frontend `.env`:
 
 ```env
-VITE_API_URL=http://localhost:3001
-VITE_SOCKET_URL=http://localhost:3001
+VITE_API_URL=https://anonchat-kvm9.onrender.com
+VITE_SOCKET_URL=https://anonchat-kvm9.onrender.com
 ```
 
 Backend `server/.env`:
 
 ```env
 PORT=3001
-CLIENT_URL=http://localhost:5173
+CLIENT_URL=http://localhost:5173,https://anon-chat-beige-tau.vercel.app
 MONGO_URI=mongodb://127.0.0.1:27017/anonchat
 JWT_SECRET=change-this-super-secret-key
 ```
@@ -91,8 +91,8 @@ Frontend su Vercel:
 6. Environment variables:
 
 ```env
-VITE_API_URL=https://YOUR-RENDER-SERVICE.onrender.com
-VITE_SOCKET_URL=https://YOUR-RENDER-SERVICE.onrender.com
+VITE_API_URL=https://anonchat-kvm9.onrender.com
+VITE_SOCKET_URL=https://anonchat-kvm9.onrender.com
 ```
 
 Backend su Render:
@@ -106,7 +106,7 @@ Backend su Render:
 3. Environment variables:
 
 ```env
-CLIENT_URL=https://YOUR-PROJECT.vercel.app,https://YOUR-DOMAIN.com
+CLIENT_URL=https://anon-chat-beige-tau.vercel.app
 MONGO_URI=your-mongodb-uri
 JWT_SECRET=your-secret
 ```

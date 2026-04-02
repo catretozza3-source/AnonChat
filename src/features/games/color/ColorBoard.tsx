@@ -255,7 +255,7 @@ export function ColorBoard({
       </div>
 
       {isFinishedPhase ? (
-        <div className="relative z-10 mt-5 flex min-h-0 flex-1 flex-col items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.04] p-8 text-center">
+        <div className="relative z-10 mt-5 flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto rounded-[28px] border border-white/10 bg-white/[0.04] p-6 text-center sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
             Partita finita
           </p>
@@ -281,7 +281,7 @@ export function ColorBoard({
         </div>
       ) : isMemorizePhase ? (
         <div
-          className="relative z-10 mt-5 min-h-0 flex-1 rounded-[28px] border border-white/10 p-6 shadow-[0_20px_45px_rgba(0,0,0,0.28)]"
+          className="relative z-10 mt-5 min-h-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 p-4 shadow-[0_20px_45px_rgba(0,0,0,0.28)] sm:p-6"
           style={{ background: colorToCss(gameState.targetColor ?? defaultGuess) }}
         >
           <div className="flex items-start justify-between gap-4">
@@ -295,7 +295,7 @@ export function ColorBoard({
           </div>
         </div>
       ) : isResultPhase && gameState.revealResult ? (
-        <div className="relative z-10 mt-4 flex min-h-0 flex-1 flex-col">
+        <div className="relative z-10 mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
           <div className="grid gap-2">
             <ResultSwatch
               title="Il tuo colore"
@@ -314,7 +314,7 @@ export function ColorBoard({
           </div>
         </div>
       ) : (
-      <div className="relative z-10 mt-4 flex min-h-0 flex-1 flex-col">
+      <div className="relative z-10 mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
           <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <div className="flex justify-center">
               <VerticalSlider
@@ -410,7 +410,7 @@ export function ColorBoard({
       )}
 
       {!isFinishedPhase ? (
-      <div className="relative z-10 mt-4 grid shrink-0 gap-3 sm:grid-cols-2">
+      <div className="relative z-10 mt-3 grid shrink-0 gap-2 sm:mt-4 sm:gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
           <p className="text-sm font-semibold text-white">Punteggio</p>
           <div className="mt-2 space-y-1 text-sm text-zinc-300">

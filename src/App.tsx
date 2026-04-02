@@ -1402,7 +1402,7 @@ export default function ChatSiteBase() {
 
   if (appScreen === "mode-select") {
     return (
-      <div className="relative min-h-screen overflow-hidden px-4 py-8 text-white md:px-6 md:py-8">
+      <div className="relative min-h-screen overflow-x-hidden px-4 py-8 text-white xl:overflow-hidden md:px-6 md:py-8">
         <MarbleBackground />
         <div className="relative mx-auto flex min-h-[92vh] max-w-5xl items-center justify-center">
           <motion.div
@@ -1503,7 +1503,7 @@ export default function ChatSiteBase() {
 
   if (appScreen === "video") {
     return (
-      <div className="relative min-h-screen overflow-hidden px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="relative min-h-screen overflow-x-hidden px-4 py-4 text-white xl:overflow-hidden md:px-6 md:py-6">
         <MarbleBackground />
 
         <motion.div
@@ -1883,7 +1883,7 @@ export default function ChatSiteBase() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden px-4 py-4 text-white md:px-6 md:py-6">
+    <div className="relative min-h-screen overflow-x-hidden px-4 py-4 text-white xl:overflow-hidden md:px-6 md:py-6">
       <MarbleBackground />
 
       <motion.div

@@ -1,0 +1,19 @@
+services:
+  - name: anonchat-api
+    type: web
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: CLIENT_URL
+        value: https://your-project.vercel.app
+      - key: MONGO_URI
+        value: mongodb+srv://USERNAME:PASSWORD@cluster-name.mongodb.net/anonchat?retryWrites=true&w=majority
+      - key: JWT_SECRET
+        generateValue: true

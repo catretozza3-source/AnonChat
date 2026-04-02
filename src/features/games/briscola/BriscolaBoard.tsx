@@ -63,7 +63,7 @@ export function BriscolaBoard({
 }) {
   if (!gameState) {
     return (
-      <div className="flex h-full min-h-[560px] items-center justify-center rounded-[30px] border border-white/10 bg-black/35 p-8 text-center text-zinc-300 sm:min-h-[760px]">
+      <div className="flex h-auto min-h-[760px] items-center justify-center rounded-[30px] border border-white/10 bg-black/35 p-8 text-center text-zinc-300 sm:h-full">
         Caricamento partita...
       </div>
     );
@@ -72,10 +72,10 @@ export function BriscolaBoard({
   const briscolaLabel = gameState.briscolaCard ? getCardLabel(gameState.briscolaCard) : "Nessuna";
 
   return (
-    <div className="relative h-full min-h-0 overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.16),transparent_28%),linear-gradient(180deg,#14532d,#166534)] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.28)] sm:min-h-[760px] sm:p-4">
+    <div className="relative h-auto min-h-[860px] overflow-visible rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_center,rgba(34,197,94,0.16),transparent_28%),linear-gradient(180deg,#14532d,#166534)] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.28)] sm:h-full sm:min-h-[760px] sm:overflow-hidden sm:p-4">
       <div className="absolute inset-3 rounded-[26px] border border-white/10" />
 
-      <div className="relative z-10 flex h-full min-h-0 flex-col gap-3 sm:hidden">
+      <div className="relative z-10 flex h-auto flex-col gap-3 sm:hidden">
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 backdrop-blur-xl">
             <p className="text-xs font-semibold text-white">Turno attuale</p>

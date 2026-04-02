@@ -269,7 +269,7 @@ export function ColorBoard({
       : "Pareggio";
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_20%),linear-gradient(180deg,#17171b,#121216)] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.28)] sm:p-5">
+    <div className="relative flex h-auto min-h-[900px] flex-col overflow-visible rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.05),transparent_20%),linear-gradient(180deg,#17171b,#121216)] p-3 shadow-[inset_0_0_30px_rgba(0,0,0,0.28)] sm:h-full sm:min-h-0 sm:overflow-hidden sm:p-5">
       <div className="pointer-events-none absolute inset-3 rounded-[26px] border border-white/8" />
 
       <div className="relative z-10 flex items-center justify-between gap-2 sm:gap-4">
@@ -305,7 +305,7 @@ export function ColorBoard({
       </div>
 
       {isFinishedPhase ? (
-        <div className="relative z-10 mt-5 flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto rounded-[28px] border border-white/10 bg-white/[0.04] p-6 text-center sm:p-8">
+        <div className="relative z-10 mt-5 flex flex-col items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.04] p-6 text-center sm:min-h-0 sm:flex-1 sm:overflow-y-auto sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
             Partita finita
           </p>
@@ -331,7 +331,7 @@ export function ColorBoard({
         </div>
       ) : isMemorizePhase ? (
         <div
-          className="relative z-10 mt-5 min-h-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 p-4 shadow-[0_20px_45px_rgba(0,0,0,0.28)] sm:p-6"
+          className="relative z-10 mt-5 min-h-[460px] rounded-[28px] border border-white/10 p-4 shadow-[0_20px_45px_rgba(0,0,0,0.28)] sm:min-h-0 sm:flex-1 sm:overflow-hidden sm:p-6"
           style={{ background: colorToCss(gameState.targetColor ?? defaultGuess) }}
         >
           <div className="flex items-start justify-between gap-4">
@@ -345,7 +345,7 @@ export function ColorBoard({
           </div>
         </div>
       ) : isResultPhase && gameState.revealResult ? (
-        <div className="relative z-10 mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
+        <div className="relative z-10 mt-4 flex flex-col pr-1 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
           <div className="grid gap-2">
             <ResultSwatch
               title="Il tuo colore"
@@ -364,7 +364,7 @@ export function ColorBoard({
           </div>
         </div>
       ) : (
-      <div className="relative z-10 mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
+      <div className="relative z-10 mt-4 flex flex-col pr-1 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
           <div className="grid grid-cols-3 gap-2 sm:gap-4">
             <div className="flex justify-center">
               <VerticalSlider

@@ -34,22 +34,72 @@ function VerticalSlider({
   gradient: string;
   disabled: boolean;
 }) {
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const isDraggingRef = useRef(false);
+
+  const setValueFromPointer = (clientY: number) => {
+    const track = trackRef.current;
+    if (!track || disabled) return;
+
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (rect.bottom - clientY) / rect.height));
+    const nextValue = Math.round(min + ratio * (max - min));
+    onChange(nextValue);
+  };
+
+  useEffect(() => {
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingRef.current) return;
+      event.preventDefault();
+      setValueFromPointer(event.clientY);
+    };
+
+    const stopDragging = () => {
+      isDraggingRef.current = false;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, [disabled, max, min, onChange]);
+
+  const thumbPosition = `${((value - min) / (max - min)) * 100}%`;
+
   return (
     <div className="flex flex-col items-center gap-2 sm:gap-3">
       <span className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-300">
         {label}
       </span>
-      <div className="flex h-[clamp(120px,22dvh,320px)] w-16 items-center justify-center rounded-[24px] border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:w-20">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={value}
-          disabled={disabled}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className="color-range h-8 w-[clamp(104px,calc(22dvh-16px),304px)] -rotate-90 appearance-none rounded-full"
+      <div className="flex h-[clamp(120px,22dvh,320px)] w-14 items-center justify-center rounded-[24px] border border-white/10 bg-black/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:w-20">
+        <div
+          ref={trackRef}
+          role="slider"
+          aria-label={label}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={value}
+          onPointerDown={(event) => {
+            if (disabled) return;
+            isDraggingRef.current = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setValueFromPointer(event.clientY);
+          }}
+          className={`relative h-[calc(100%-24px)] w-8 rounded-full shadow-[0_10px_20px_rgba(0,0,0,0.25)] touch-none ${
+            disabled ? "cursor-not-allowed opacity-70" : "cursor-pointer"
+          }`}
           style={{ background: gradient }}
-        />
+        >
+          <div
+            className="absolute left-1/2 h-6 w-6 -translate-x-1/2 translate-y-1/2 rounded-full border-2 border-white/90 bg-white shadow-[0_4px_14px_rgba(0,0,0,0.28)]"
+            style={{ bottom: thumbPosition }}
+          />
+        </div>
       </div>
       <span className="text-sm font-medium text-zinc-300">{value}</span>
     </div>
@@ -223,14 +273,14 @@ export function ColorBoard({
       <div className="pointer-events-none absolute inset-3 rounded-[26px] border border-white/8" />
 
       <div className="relative z-10 flex items-center justify-between gap-2 sm:gap-4">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 sm:px-4 sm:py-3">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-2.5 py-2 sm:px-4 sm:py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">Round</p>
           <p className="mt-1 text-xl font-bold text-white">
             {Math.max(gameState.round, 1)}/{gameState.totalRounds}
           </p>
         </div>
 
-        <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-200 sm:px-4 sm:text-xs sm:tracking-[0.22em]">
+        <div className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-200 sm:px-4 sm:text-xs sm:tracking-[0.22em]">
           {phaseLabel}
         </div>
 
@@ -250,7 +300,7 @@ export function ColorBoard({
             </p>
           </div>
         ) : (
-          <div className="w-[70px] sm:w-[88px]" />
+          <div className="w-[62px] sm:w-[88px]" />
         )}
       </div>
 

@@ -2120,7 +2120,7 @@ export default function ChatSiteBase() {
           </Card>
 
           {isBriscolaActive ? (
-            <Card className="relative isolate h-[calc(100dvh-2rem)] min-h-[680px] overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
+            <Card className="relative isolate h-auto overflow-visible rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:overflow-hidden xl:rounded-[32px]">
               <CardContent className="h-full p-4">
                 <BriscolaBoard
                   gameState={briscolaGameState}

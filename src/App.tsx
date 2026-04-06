@@ -21,6 +21,11 @@ import {
   Crown,
   Trophy,
   X,
+  MoonStar,
+  Save,
+  Settings,
+  SunMedium,
+  UserCog,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 import { MarbleBackground } from "@/components/layout/MarbleBackground";
@@ -53,8 +58,13 @@ import {
 import { apiRequest } from "@/lib/api";
 
 const CLIENT_SESSION_KEY = "anonchat_client_session_id";
+const THEME_STORAGE_KEY = "anonchat_site_theme";
 const BRAND_LOGO_SRC = "/logo.png";
 const VIDEO_ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+
+type AppScreen = "mode-select" | "chat" | "onlychat" | "video";
+type TextChatMode = "chat" | "onlychat";
+type SiteTheme = "dark" | "light";
 
 function getClientSessionId() {
   if (typeof window === "undefined") {
@@ -75,15 +85,40 @@ function getClientSessionId() {
   return created;
 }
 
+function getStoredSiteTheme(): SiteTheme {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+
+  try {
+    return window.localStorage.getItem(THEME_STORAGE_KEY) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+if (typeof document !== "undefined") {
+  const initialTheme = getStoredSiteTheme();
+  document.documentElement.classList.toggle("dark", initialTheme === "dark");
+  document.documentElement.dataset.siteTheme = initialTheme;
+}
+
 export default function ChatSiteBase() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [appScreen, setAppScreen] = useState<"mode-select" | "chat" | "video">("mode-select");
+  const [appScreen, setAppScreen] = useState<AppScreen>("mode-select");
+  const [siteTheme, setSiteTheme] = useState<SiteTheme>(() => getStoredSiteTheme());
   const [shouldAutoStartChat, setShouldAutoStartChat] = useState(false);
   const [authUsername, setAuthUsername] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsUsername, setSettingsUsername] = useState("");
+  const [settingsPassword, setSettingsPassword] = useState("");
+  const [settingsError, setSettingsError] = useState("");
+  const [settingsSuccess, setSettingsSuccess] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
 
   const [message, setMessage] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -95,6 +130,7 @@ export default function ChatSiteBase() {
     createSystemMessage("Benvenuto. Premi 'Trova sconosciuto' per iniziare subito una nuova chat.", 1),
   ]);
   const [chatOnlineCount, setChatOnlineCount] = useState(0);
+  const [onlyChatOnlineCount, setOnlyChatOnlineCount] = useState(0);
   const [videoOnlineCount, setVideoOnlineCount] = useState(0);
   const [connectionError, setConnectionError] = useState("");
 
@@ -150,6 +186,7 @@ export default function ChatSiteBase() {
 
   const trimmedMessage = message.trim();
   const canSend = connected && trimmedMessage.length > 0;
+  const isLightTheme = siteTheme === "light";
 
   const voteCount = Number(briscolaVotes.myVote) + Number(briscolaVotes.peerVote);
   const startVoteActive = !isBriscolaActive && briscolaVotes.mode === "start";
@@ -162,6 +199,9 @@ export default function ChatSiteBase() {
   const hasMyColorStartVote = colorStartVoteActive && colorVotes.myVote;
   const hasMyColorEndVote = colorEndVoteActive && colorVotes.myVote;
   const activeGameCount = Number(isBriscolaActive) + Number(isColorActive);
+  const hasMiniGames = appScreen === "chat";
+  const isTextChatScreen = appScreen === "chat" || appScreen === "onlychat";
+  const textChatMode: TextChatMode = appScreen === "onlychat" ? "onlychat" : "chat";
 
   const nextMessageId = () => {
     messageIdRef.current += 1;
@@ -564,6 +604,11 @@ export default function ChatSiteBase() {
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
       setCurrentUser(authUser);
+      setSettingsUsername(authUser.username);
+      setSettingsPassword("");
+      setSettingsError("");
+      setSettingsSuccess("");
+      setSettingsOpen(false);
       setAppScreen("mode-select");
       setShouldAutoStartChat(false);
       setAuthUsername("");
@@ -582,11 +627,16 @@ export default function ChatSiteBase() {
     disconnectSocket();
     localStorage.removeItem(STORAGE_KEY);
     setCurrentUser(null);
+    setSettingsOpen(false);
+    setSettingsPassword("");
+    setSettingsError("");
+    setSettingsSuccess("");
     setAppScreen("mode-select");
     setShouldAutoStartChat(false);
     setAuthError("");
     setConnectionError("");
     setChatOnlineCount(0);
+    setOnlyChatOnlineCount(0);
     setVideoOnlineCount(0);
     resetChatState(true);
   };
@@ -598,6 +648,7 @@ export default function ChatSiteBase() {
     setShouldAutoStartChat(false);
     setConnectionError("");
     setChatOnlineCount(0);
+    setOnlyChatOnlineCount(0);
     setVideoOnlineCount(0);
     resetChatState(true);
   };
@@ -618,6 +669,7 @@ export default function ChatSiteBase() {
     messageIdRef.current = 2;
 
     socketRef.current.emit("find-stranger", {
+      chatMode: textChatMode,
       interests: topics,
     });
   };
@@ -655,6 +707,7 @@ export default function ChatSiteBase() {
     setIsSearching(true);
 
     socketRef.current.emit("find-stranger", {
+      chatMode: textChatMode,
       interests: topics,
     });
   };
@@ -763,6 +816,75 @@ export default function ChatSiteBase() {
     resetChatState(true);
   };
 
+  const toggleSiteTheme = () => {
+    setSiteTheme((prevTheme) => (prevTheme === "dark" ? "light" : "dark"));
+  };
+
+  const handleToggleSettings = () => {
+    if (currentUser) {
+      setSettingsUsername(currentUser.username);
+    }
+    setSettingsPassword("");
+    setSettingsError("");
+    setSettingsSuccess("");
+    setSettingsOpen((prevOpen) => !prevOpen);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!currentUser || settingsSaving) return;
+
+    const username = settingsUsername.trim();
+    const password = settingsPassword.trim();
+
+    if (username.length < 3) {
+      setSettingsError("L'username deve avere almeno 3 caratteri.");
+      setSettingsSuccess("");
+      return;
+    }
+
+    if (password && password.length < 5) {
+      setSettingsError("La nuova password deve avere almeno 5 caratteri.");
+      setSettingsSuccess("");
+      return;
+    }
+
+    setSettingsSaving(true);
+    setSettingsError("");
+    setSettingsSuccess("");
+
+    try {
+      const data = await apiRequest<AuthResponse>(
+        "/auth/profile",
+        "PATCH",
+        { username, password },
+        currentUser.token
+      );
+      const updatedUser: AuthUser = {
+        id: data.user.id,
+        username: data.user.username,
+        token: data.token,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+      setCurrentUser(updatedUser);
+      setSettingsUsername(updatedUser.username);
+      setSettingsPassword("");
+      setSettingsSuccess("Profilo aggiornato con successo.");
+    } catch (error) {
+      setSettingsError(
+        error instanceof Error ? error.message : "Impossibile aggiornare il profilo."
+      );
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleChooseOnlyChatMode = () => {
+    setAppScreen("onlychat");
+    setShouldAutoStartChat(false);
+    setConnectionError("");
+    resetChatState(true);
+  };
+
   const nextVideoStranger = () => {
     if (!socketRef.current || !currentUser) return;
 
@@ -817,6 +939,7 @@ export default function ChatSiteBase() {
     setShouldAutoStartChat(false);
     setConnectionError("");
     setChatOnlineCount(0);
+    setOnlyChatOnlineCount(0);
     setVideoOnlineCount(0);
     setIsVideoMicOn(true);
     setIsVideoCameraOn(false);
@@ -846,6 +969,107 @@ export default function ChatSiteBase() {
     }
   };
 
+  const renderSettingsPanel = () => {
+    if (!currentUser || !settingsOpen) return null;
+
+    return (
+      <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.05] p-4 shadow-xl shadow-black/20 backdrop-blur-xl">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-gradient-to-br from-white to-zinc-300 text-black shadow-lg shadow-white/10">
+            <UserCog className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
+              Impostazioni
+            </p>
+            <h3 className="text-base font-bold text-white">Profilo e tema</h3>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+              Nuovo username
+            </label>
+            <Input
+              value={settingsUsername}
+              onChange={(event) => setSettingsUsername(event.target.value)}
+              placeholder="Aggiorna username"
+              className="h-12 rounded-2xl border-white/10 bg-black/20 text-white placeholder:text-zinc-500"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+              Nuova password
+            </label>
+            <Input
+              type="password"
+              value={settingsPassword}
+              onChange={(event) => setSettingsPassword(event.target.value)}
+              placeholder="Lascia vuoto per non cambiarla"
+              className="h-12 rounded-2xl border-white/10 bg-black/20 text-white placeholder:text-zinc-500"
+            />
+          </div>
+
+          <div className="rounded-[24px] border border-white/10 bg-black/20 p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                  Tema sito
+                </p>
+                <p className="mt-1 text-sm font-medium text-zinc-200">
+                  {isLightTheme ? "Chiaro" : "Scuro"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleSiteTheme}
+                className="inline-flex h-11 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm font-semibold text-zinc-100 transition hover:bg-white/10"
+              >
+                {isLightTheme ? (
+                  <SunMedium className="h-4 w-4" />
+                ) : (
+                  <MoonStar className="h-4 w-4" />
+                )}
+                Cambia
+              </button>
+            </div>
+            <p className="text-xs leading-5 text-zinc-500">
+              Il tema chiaro usa una palette alternativa soft, mentre lo scuro mantiene
+              l'effetto marble di base.
+            </p>
+          </div>
+
+          {settingsError ? (
+            <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+              {settingsError}
+            </div>
+          ) : null}
+
+          {settingsSuccess ? (
+            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              {settingsSuccess}
+            </div>
+          ) : null}
+
+          <Button
+            onClick={handleSaveSettings}
+            disabled={settingsSaving}
+            className="h-12 w-full rounded-2xl bg-gradient-to-r from-white to-zinc-300 text-black shadow-lg shadow-white/10 hover:opacity-95"
+          >
+            {settingsSaving ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            {settingsSaving ? "Salvataggio..." : "Salva impostazioni"}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -853,6 +1077,7 @@ export default function ChatSiteBase() {
       const parsed = JSON.parse(saved) as AuthUser;
       if (parsed?.token && parsed?.username && parsed?.id) {
         setCurrentUser(parsed);
+        setSettingsUsername(parsed.username);
         setAppScreen("mode-select");
       }
     } catch {
@@ -861,7 +1086,21 @@ export default function ChatSiteBase() {
   }, []);
 
   useEffect(() => {
-    if (!currentUser || (appScreen !== "chat" && appScreen !== "video")) return;
+    if (typeof document === "undefined") return;
+
+    document.documentElement.classList.toggle("dark", siteTheme === "dark");
+    document.documentElement.dataset.siteTheme = siteTheme;
+    document.body.dataset.siteTheme = siteTheme;
+    localStorage.setItem(THEME_STORAGE_KEY, siteTheme);
+  }, [siteTheme]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setSettingsUsername(currentUser.username);
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) return;
 
     const socket = io(SOCKET_URL, {
       auth: {
@@ -876,7 +1115,7 @@ export default function ChatSiteBase() {
     socket.on("connect", () => {
       setConnectionError("");
       socket.emit("presence", {
-        mode: appScreen,
+        mode: isTextChatScreen ? textChatMode : appScreen === "video" ? "video" : null,
       });
     });
 
@@ -888,8 +1127,14 @@ export default function ChatSiteBase() {
 
     socket.on(
       "online-count",
-      (payload: { count: number; chatCount?: number; videoCount?: number }) => {
+      (payload: {
+        count: number;
+        chatCount?: number;
+        onlyChatCount?: number;
+        videoCount?: number;
+      }) => {
         setChatOnlineCount(payload.chatCount ?? payload.count);
+        setOnlyChatOnlineCount(payload.onlyChatCount ?? payload.count);
         setVideoOnlineCount(payload.videoCount ?? payload.count);
       }
     );
@@ -1091,6 +1336,7 @@ export default function ChatSiteBase() {
       setAuthError(payload.message || "Sessione terminata.");
       setConnectionError("");
       setChatOnlineCount(0);
+      setOnlyChatOnlineCount(0);
       setVideoOnlineCount(0);
       resetChatState(true);
     });
@@ -1111,7 +1357,7 @@ export default function ChatSiteBase() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [appScreen, clientSessionId, currentUser]);
+  }, [appScreen, clientSessionId, currentUser, isTextChatScreen, textChatMode]);
 
   useEffect(() => {
     if (localStreamRef.current) {
@@ -1191,7 +1437,7 @@ export default function ChatSiteBase() {
   }, [appScreen]);
 
   useEffect(() => {
-    if (appScreen !== "chat") return;
+    if (!isTextChatScreen) return;
 
     const socket = socketRef.current;
     if (!socket || !connected) return;
@@ -1205,7 +1451,7 @@ export default function ChatSiteBase() {
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [appScreen, message, connected]);
+  }, [connected, isTextChatScreen, message]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
@@ -1228,16 +1474,19 @@ export default function ChatSiteBase() {
   }, [connectionError]);
 
   useEffect(() => {
-    if (!currentUser || appScreen !== "chat" || !shouldAutoStartChat) return;
+    if (!currentUser || !isTextChatScreen || !shouldAutoStartChat) return;
     if (!socketRef.current || connected || isSearching) return;
 
     setShouldAutoStartChat(false);
     connectToRandomStranger();
-  }, [appScreen, connected, currentUser, isSearching, shouldAutoStartChat]);
+  }, [connected, currentUser, isSearching, isTextChatScreen, shouldAutoStartChat]);
 
   if (!currentUser) {
     return (
-      <div className="relative min-h-screen overflow-hidden px-4 py-8 text-white md:px-8">
+      <div
+        className="app-shell relative min-h-screen overflow-hidden px-4 py-8 text-white md:px-8"
+        data-site-theme={siteTheme}
+      >
         <MarbleBackground />
         <div className="relative mx-auto flex min-h-[92vh] max-w-7xl items-center justify-center">
           <motion.div
@@ -1402,7 +1651,10 @@ export default function ChatSiteBase() {
 
   if (appScreen === "mode-select") {
     return (
-      <div className="relative min-h-screen overflow-x-hidden px-4 py-8 text-white xl:overflow-hidden md:px-6 md:py-8">
+      <div
+        className="app-shell relative min-h-screen overflow-x-hidden px-4 py-8 text-white xl:overflow-hidden md:px-6 md:py-8"
+        data-site-theme={siteTheme}
+      >
         <MarbleBackground />
         <div className="relative mx-auto flex min-h-[92vh] max-w-5xl items-center justify-center">
           <motion.div
@@ -1434,20 +1686,33 @@ export default function ChatSiteBase() {
                       <p className="mt-3 max-w-2xl text-base leading-7 text-zinc-300">
                         Sei dentro come{" "}
                         <span className="font-semibold text-white">{currentUser.username}</span>.
-                        Scegli se entrare in chat testuale o avviare una videochat casuale.
+                        Scegli se entrare in chat + minigiochi, onlychat o avviare una
+                        videochat casuale.
                       </p>
                     </div>
 
-                    <button
-                      onClick={handleLogout}
-                      className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10"
-                      type="button"
-                    >
-                      Esci
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={handleToggleSettings}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10"
+                        type="button"
+                      >
+                        <Settings className="h-4 w-4" />
+                        Impostazioni
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-zinc-200 transition hover:bg-white/10"
+                        type="button"
+                      >
+                        Esci
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="grid gap-5 md:grid-cols-2">
+                  {renderSettingsPanel()}
+
+                  <div className="mt-5 grid gap-5 lg:grid-cols-3">
                     <button
                       type="button"
                       onClick={handleChooseChatMode}
@@ -1455,16 +1720,42 @@ export default function ChatSiteBase() {
                     >
                       <div className="mb-5 flex h-20 w-20 items-center justify-center">
                         <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-gradient-to-br from-white to-zinc-300 text-black shadow-lg shadow-white/10">
-                          <MessageCircle className="h-7 w-7" />
+                          <Swords className="h-7 w-7" />
                         </div>
                       </div>
-                      <h2 className="mt-4 text-2xl font-bold text-white">Chat</h2>
+                      <h2 className="mt-4 text-2xl font-bold text-white">Chat + minigiochi</h2>
+                      <div className="mt-3 inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-200">
+                        {chatOnlineCount.toLocaleString("it-IT")} online
+                      </div>
                       <p className="mt-3 text-sm leading-7 text-zinc-300">
-                        Ti porto direttamente nella schermata principale e avvio subito il primo
-                        match senza dover premere manualmente il pulsante.
+                        Entra nella chat testuale completa con pannello giochi, Briscola e Color
+                        disponibili durante la conversazione.
                       </p>
                       <div className="mt-6 text-sm font-semibold text-zinc-100 transition group-hover:text-white">
                         Entra in chat
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleChooseOnlyChatMode}
+                      className="group rounded-[28px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] p-6 text-left shadow-xl shadow-black/20 transition hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.08]"
+                    >
+                      <div className="mb-5 flex h-20 w-20 items-center justify-center">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-gradient-to-br from-white to-zinc-300 text-black shadow-lg shadow-white/10">
+                          <MessageCircle className="h-7 w-7" />
+                        </div>
+                      </div>
+                      <h2 className="mt-4 text-2xl font-bold text-white">OnlyChat</h2>
+                      <div className="mt-3 inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-200">
+                        {onlyChatOnlineCount.toLocaleString("it-IT")} online
+                      </div>
+                      <p className="mt-3 text-sm leading-7 text-zinc-300">
+                        Solo chat testuale, senza minigiochi e senza pannelli extra, per una
+                        conversazione piu pulita e immediata.
+                      </p>
+                      <div className="mt-6 text-sm font-semibold text-zinc-100 transition group-hover:text-white">
+                        Entra in onlychat
                       </div>
                     </button>
 
@@ -1477,6 +1768,9 @@ export default function ChatSiteBase() {
                         <Video className="h-7 w-7" />
                       </div>
                       <h2 className="mt-4 text-2xl font-bold text-white">Videochat</h2>
+                      <div className="mt-3 inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-200">
+                        {videoOnlineCount.toLocaleString("it-IT")} online
+                      </div>
                       <p className="mt-3 text-sm leading-7 text-zinc-300">
                         Entra in una schermata video dedicata con layout immersivo, controlli
                         rapidi e spazio pronto per il prossimo matching cam.
@@ -1503,7 +1797,10 @@ export default function ChatSiteBase() {
 
   if (appScreen === "video") {
     return (
-      <div className="relative min-h-screen overflow-x-hidden px-4 py-4 text-white xl:overflow-hidden md:px-6 md:py-6">
+      <div
+        className="app-shell relative min-h-screen overflow-x-hidden px-4 py-4 text-white xl:overflow-hidden md:px-6 md:py-6"
+        data-site-theme={siteTheme}
+      >
         <MarbleBackground />
 
         <motion.div
@@ -1558,6 +1855,17 @@ export default function ChatSiteBase() {
                   </button>
                 </div>
               </div>
+
+              <button
+                onClick={handleToggleSettings}
+                className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-white/10"
+                type="button"
+              >
+                <Settings className="h-4 w-4" />
+                Impostazioni
+              </button>
+
+              {renderSettingsPanel()}
 
               <div className="space-y-4">
                 <Button
@@ -1883,14 +2191,21 @@ export default function ChatSiteBase() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden px-4 py-4 text-white xl:overflow-hidden md:px-6 md:py-6">
+    <div
+      className="app-shell relative min-h-screen overflow-x-hidden px-4 py-4 text-white xl:overflow-hidden md:px-6 md:py-6"
+      data-site-theme={siteTheme}
+    >
       <MarbleBackground />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="relative mx-auto grid h-auto max-w-[1700px] gap-5 xl:h-[calc(100dvh-3rem)] xl:grid-cols-[360px_minmax(0,1fr)_330px]"
+        className={`relative mx-auto grid h-auto max-w-[1700px] gap-5 xl:h-[calc(100dvh-3rem)] ${
+          hasMiniGames
+            ? "xl:grid-cols-[360px_minmax(0,1fr)_330px]"
+            : "xl:grid-cols-[360px_minmax(0,1fr)]"
+        }`}
       >
         <Card className="relative isolate h-auto overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.06] shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
           <CardContent className="h-full overflow-y-auto p-5">
@@ -1904,7 +2219,9 @@ export default function ChatSiteBase() {
                   />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-white">Chat</h1>
+                  <h1 className="text-xl font-bold text-white">
+                    {hasMiniGames ? "Chat + minigiochi" : "OnlyChat"}
+                  </h1>
                 </div>
               </div>
               <button
@@ -1922,9 +2239,11 @@ export default function ChatSiteBase() {
                 Utenti online
               </div>
               <p className="text-4xl font-black tracking-tight text-white">
-                {chatOnlineCount.toLocaleString("it-IT")}
+                {(hasMiniGames ? chatOnlineCount : onlyChatOnlineCount).toLocaleString("it-IT")}
               </p>
-              <p className="mt-2 text-sm text-zinc-300">Connessi ora nella chat casuale</p>
+              <p className="mt-2 text-sm text-zinc-300">
+                Connessi ora in {hasMiniGames ? "Chat + minigiochi" : "OnlyChat"}
+              </p>
               <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-sm text-zinc-300 backdrop-blur">
                 <div>
                   Sei loggato come{" "}
@@ -1939,6 +2258,17 @@ export default function ChatSiteBase() {
                 </button>
               </div>
             </div>
+
+            <button
+              onClick={handleToggleSettings}
+              className="mb-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-medium text-zinc-200 transition hover:bg-white/10"
+              type="button"
+            >
+              <Settings className="h-4 w-4" />
+              Impostazioni
+            </button>
+
+            {renderSettingsPanel()}
 
             <div className="space-y-4">
               <Button
@@ -1991,7 +2321,11 @@ export default function ChatSiteBase() {
           </CardContent>
         </Card>
 
-        <div className={`relative isolate grid min-h-0 gap-5 ${activeGameCount > 0 ? "xl:grid-cols-[340px_minmax(0,1fr)]" : "grid-cols-1"}`}>
+        <div
+          className={`relative isolate grid min-h-0 gap-5 ${
+            hasMiniGames && activeGameCount > 0 ? "xl:grid-cols-[340px_minmax(0,1fr)]" : "grid-cols-1"
+          }`}
+        >
           <Card className="relative isolate h-[78dvh] min-h-[620px] overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_45%,rgba(255,255,255,0.015))]" />
             <CardContent className="flex h-full min-h-0 flex-col p-0 text-white">
@@ -2013,7 +2347,8 @@ export default function ChatSiteBase() {
                       </h2>
                     )}
                   </div>
-                  <div className="flex items-center justify-center gap-2">
+                  {hasMiniGames ? (
+                    <div className="flex items-center justify-center gap-2">
                     {isBriscolaActive ? (
                       <div className="rounded-full border border-emerald-400/30 bg-emerald-500/15 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200 backdrop-blur">
                         Briscola attiva
@@ -2024,7 +2359,8 @@ export default function ChatSiteBase() {
                         Color attivo
                       </div>
                     ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -2119,7 +2455,7 @@ export default function ChatSiteBase() {
             </CardContent>
           </Card>
 
-          {isBriscolaActive ? (
+          {hasMiniGames && isBriscolaActive ? (
             <Card className="relative isolate h-auto overflow-visible rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:overflow-hidden xl:rounded-[32px]">
               <CardContent className="h-auto p-4 xl:h-full">
                 <BriscolaBoard
@@ -2129,7 +2465,7 @@ export default function ChatSiteBase() {
                 />
               </CardContent>
             </Card>
-          ) : isColorActive ? (
+          ) : hasMiniGames && isColorActive ? (
             <Card className="relative isolate h-auto overflow-visible rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:overflow-hidden xl:rounded-[32px]">
               <CardContent className="h-auto p-4 xl:h-full">
                 <ColorBoard
@@ -2142,6 +2478,7 @@ export default function ChatSiteBase() {
           ) : null}
         </div>
 
+        {hasMiniGames ? (
         <Card className="relative isolate h-auto overflow-hidden rounded-[28px] border border-white/10 bg-black/35 shadow-[0_20px_80px_rgba(0,0,0,0.45)] xl:h-full xl:rounded-[32px]">
           <CardContent className="h-full overflow-y-auto p-5">
             <div className="mb-5 flex items-center gap-3">
@@ -2278,6 +2615,7 @@ export default function ChatSiteBase() {
             )}
           </CardContent>
         </Card>
+        ) : null}
       </motion.div>
     </div>
   );

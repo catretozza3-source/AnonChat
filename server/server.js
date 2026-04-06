@@ -28,6 +28,8 @@ const COLOR_TOTAL_ROUNDS = 5;
 const COLOR_MEMORIZE_MS = 5000;
 const COLOR_GUESS_MS = 60000;
 const COLOR_RESULT_MS = 5000;
+const TEXT_CHAT_MODES = new Set(["chat", "onlychat"]);
+const PRESENCE_MODES = new Set(["chat", "onlychat", "video"]);
 
 function parseAllowedOrigins(value) {
   return String(value || "")
@@ -134,6 +136,18 @@ function sanitizeMessage(text) {
   return String(text || "").replace(/\s+/g, " ").trim().slice(0, MAX_MESSAGE_LENGTH);
 }
 
+function sanitizeChatMode(mode) {
+  return TEXT_CHAT_MODES.has(mode) ? mode : "chat";
+}
+
+function sanitizePresenceMode(mode) {
+  return PRESENCE_MODES.has(mode) ? mode : null;
+}
+
+function getSocketChatMode(socket) {
+  return sanitizeChatMode(socket?.data?.chatMode);
+}
+
 function createToken(user) {
   return jwt.sign(
     { id: String(user._id || user.id), username: user.username },
@@ -216,7 +230,23 @@ function getRoomIdBySocket(socketId) {
 }
 
 function emitOnlineCount() {
-  io.emit("online-count", { count: onlineUsers.size });
+  const counts = {
+    chatCount: 0,
+    onlyChatCount: 0,
+    videoCount: 0,
+  };
+
+  io.sockets.sockets.forEach((socket) => {
+    const mode = sanitizePresenceMode(socket.data?.presenceMode);
+    if (mode === "chat") counts.chatCount += 1;
+    if (mode === "onlychat") counts.onlyChatCount += 1;
+    if (mode === "video") counts.videoCount += 1;
+  });
+
+  io.emit("online-count", {
+    count: onlineUsers.size,
+    ...counts,
+  });
 }
 
 function getConnectedUserEntry(userId) {
@@ -322,6 +352,14 @@ function isAnotherGameActive(roomId, gameName) {
   if (gameName !== "briscola" && briscolaGames.has(roomId)) return true;
   if (gameName !== "color" && colorGames.has(roomId)) return true;
   return false;
+}
+
+function canUseMiniGames(socket) {
+  const partnerId = getPartnerId(socket.id);
+  if (!partnerId || getSocketChatMode(socket) !== "chat") return false;
+
+  const partnerSocket = io.sockets.sockets.get(partnerId);
+  return getSocketChatMode(partnerSocket) === "chat";
 }
 
 function emitColorVoteState(roomId) {
@@ -805,6 +843,11 @@ function emitColorState(roomId) {
 }
 
 function handleColorVote(socket, payload = {}) {
+  if (!canUseMiniGames(socket)) {
+    socket.emit("error-message", { message: "I minigiochi non sono disponibili in OnlyChat." });
+    return;
+  }
+
   const partnerId = getPartnerId(socket.id);
   const roomId = getRoomIdBySocket(socket.id);
 
@@ -906,6 +949,11 @@ function handleColorSubmit(socket, payload = {}) {
 }
 
 function handleBriscolaVote(socket, payload = {}) {
+  if (!canUseMiniGames(socket)) {
+    socket.emit("error-message", { message: "I minigiochi non sono disponibili in OnlyChat." });
+    return;
+  }
+
   const partnerId = getPartnerId(socket.id);
   const roomId = getRoomIdBySocket(socket.id);
 
@@ -1088,6 +1136,7 @@ function leaveCurrentVideoChat(socket, options = { notifyPartner: true }) {
 function tryMatch(socket) {
   const current = waitingQueue.find((entry) => entry.socketId === socket.id);
   if (!current) return false;
+  const currentChatMode = sanitizeChatMode(current.chatMode);
 
   const currentIndex = waitingQueue.findIndex((entry) => entry.socketId === socket.id);
 
@@ -1097,6 +1146,7 @@ function tryMatch(socket) {
   for (let i = 0; i < waitingQueue.length; i += 1) {
     const candidate = waitingQueue[i];
     if (candidate.socketId === socket.id) continue;
+    if (sanitizeChatMode(candidate.chatMode) !== currentChatMode) continue;
 
     const currentInterests = current.interests || [];
     const candidateInterests = candidate.interests || [];
@@ -1325,6 +1375,62 @@ app.post("/auth/login", async (req, res) => {
   }
 });
 
+app.patch("/auth/profile", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "Utente non trovato." });
+    }
+
+    const nextUsername = sanitizeUsername(req.body?.username);
+    const nextUsernameLower = normalizeUsername(nextUsername);
+    const nextPassword = String(req.body?.password || "").trim();
+
+    if (
+      nextUsername.length < MIN_USERNAME_LENGTH ||
+      nextUsername.length > MAX_USERNAME_LENGTH
+    ) {
+      return res.status(400).json({
+        message: `L'username deve avere tra ${MIN_USERNAME_LENGTH} e ${MAX_USERNAME_LENGTH} caratteri.`,
+      });
+    }
+
+    if (nextPassword && nextPassword.length < MIN_PASSWORD_LENGTH) {
+      return res.status(400).json({
+        message: `La password deve avere almeno ${MIN_PASSWORD_LENGTH} caratteri.`,
+      });
+    }
+
+    if (nextUsernameLower !== user.usernameLower) {
+      const existingUser = await User.findOne({ usernameLower: nextUsernameLower });
+      if (existingUser && String(existingUser._id) !== String(user._id)) {
+        return res.status(409).json({ message: "Username gia utilizzato." });
+      }
+
+      user.username = nextUsername;
+      user.usernameLower = nextUsernameLower;
+    }
+
+    if (nextPassword) {
+      user.passwordHash = await bcrypt.hash(nextPassword, 10);
+    }
+
+    await user.save();
+
+    return res.json({
+      user: {
+        id: String(user._id),
+        username: user.username,
+      },
+      token: createToken(user),
+    });
+  } catch (error) {
+    console.error("Profile update error:", error);
+    return res.status(500).json({ message: "Errore interno del server." });
+  }
+});
+
 app.get("/auth/me", authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
@@ -1404,12 +1510,14 @@ io.on("connection", (socket) => {
 
   socket.emit("connected", { user: currentUser });
 
-  socket.on("presence", () => {
+  socket.on("presence", (payload = {}) => {
+    socket.data.presenceMode = sanitizePresenceMode(payload.mode);
     emitOnlineCount();
   });
 
   socket.on("find-stranger", (payload = {}) => {
     const interests = sanitizeInterests(payload.interests);
+    const chatMode = sanitizeChatMode(payload.chatMode);
 
     removeFromQueue(socket.id);
     leaveCurrentVideoChat(socket);
@@ -1419,9 +1527,13 @@ io.on("connection", (socket) => {
       socketId: socket.id,
       userId: currentUser.id,
       username: currentUser.username,
+      chatMode,
       interests,
       queuedAt: Date.now(),
     });
+
+    socket.data.chatMode = chatMode;
+    socket.data.presenceMode = chatMode;
 
     socket.emit("searching");
     tryMatch(socket);
@@ -1436,6 +1548,7 @@ io.on("connection", (socket) => {
     removeFromQueue(socket.id);
     leaveCurrentChat(socket);
     leaveCurrentVideoChat(socket);
+    socket.data.presenceMode = "video";
 
     videoWaitingQueue.push({
       socketId: socket.id,
